@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>КМД ПРО | Деталировка металлоконструкций в Tekla Structures</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Three.js для 3D-визуализации -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#0f1419',
+                            card: '#141a21',
+                            surface: '#1b232d',
+                            border: '#263241',
+                            blue: '#2563eb',
+                            cyan: '#38bdf8',
+                            orange: '#f97316',
+                            text: '#f1f5f9',
+                            muted: '#94a3b8'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Инженерная миллиметровая чертежная сетка */
+        .blueprint-grid {
+            background-color: #0f1419;
+            background-size: 60px 60px, 60px 60px, 12px 12px, 12px 12px;
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        }
+
+        /* Кастомный ползунок тоннажа */
+        input[type="range"].kmd-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #1b232d;
+            border-radius: 999px;
+            border: 1px solid #263241;
+            outline: none;
+        }
+        input[type="range"].kmd-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #f97316;
+            border: 3px solid #0f1419;
+            cursor: pointer;
+            box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"].kmd-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.12);
+        }
+        input[type="range"].kmd-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #f97316;
+            border: 3px solid #0f1419;
+            cursor: pointer;
+            box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
+        }
+
+        /* Кастомный скроллбар */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f1419;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #263241;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
+
+        .glass-header {
+            background: rgba(15, 20, 25, 0.88);
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(38, 50, 65, 0.85);
+        }
+
+        .glass-card {
+            background: rgba(20, 26, 33, 0.88);
+            backdrop-filter: blur(10px);
+            border: 1px solid #263241;
+        }
+    </style>
+</head>
+<body class="text-brand-text font-sans antialiased selection:bg-brand-orange selection:text-white blueprint-grid relative overflow-x-hidden">
+
+    <!-- ФОНОВЫЙ FIXED 3D-КАРКАС ПРОМЫШЛЕННОГО ЗДАНИЯ (THREE.JS) -->
+    <div id="bg-3d-canvas" class="fixed inset-0 z-0 pointer-events-none opacity-45"></div>
+    <div class="fixed inset-0 z-0 pointer-events-none bg-gradient-to-b from-[#0f1419]/65 via-[#0f1419]/78 to-[#0f1419]/95"></div>
+
+    <!-- 1. ШАПКА САЙТА (HEADER) -->
+    <header class="fixed top-0 left-0 right-0 z-50 glass-header">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            
+            <!-- Логотип КМД ПРО -->
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-lg bg-brand-blue/15 border border-brand-cyan/60 flex items-center justify-center text-brand-cyan group-hover:border-brand-orange group-hover:text-brand-orange transition-colors">
+                    <i class="fa-solid fa-cubes text-xl"></i>
+                </div>
+                <div>
+                    <span class="font-mono text-lg font-bold tracking-wider text-white block leading-none">
+                        КМД <span class="text-brand-orange">ПРО</span>
+                    </span>
+                    <span class="text-[10px] text-brand-muted tracking-widest uppercase font-mono">Tekla Structures BIM</span>
+                </div>
+            </a>
+
+            <!-- Навигация (Desktop) -->
+            <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-brand-muted">
+                <a href="#services" class="hover:text-brand-cyan transition-colors">Услуги</a>
+                <a href="#portfolio" class="hover:text-brand-cyan transition-colors">Портфолио</a>
+                <a href="#documentation" class="hover:text-brand-cyan transition-colors">Документация</a>
+                <a href="#calculator" class="hover:text-brand-cyan transition-colors">Калькулятор</a>
+                <a href="#contacts" class="hover:text-brand-cyan transition-colors">Контакты</a>
+            </nav>
+
+            <!-- Кнопка Рассчитать проект -->
+            <div class="hidden sm:flex items-center gap-3">
+                <a href="#calculator" class="bg-brand-orange hover:bg-orange-600 text-white text-xs font-mono font-bold uppercase tracking-wider px-5 py-3 rounded-lg transition-all shadow-lg shadow-brand-orange/25 flex items-center gap-2">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>Рассчитать проект</span>
+                </a>
+            </div>
+
+            <!-- Кнопка мобильного меню -->
+            <button id="mobile-menu-btn" aria-label="Открыть меню" class="md:hidden text-brand-muted hover:text-white p-2.5 rounded-lg border border-brand-border">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Мобильное меню -->
+        <div id="mobile-menu" class="hidden md:hidden bg-brand-card border-t border-brand-border px-4 pt-3 pb-6 space-y-2">
+            <a href="#services" class="mobile-nav-link block text-brand-muted hover:text-white py-2.5 border-b border-brand-border/50">Услуги</a>
+            <a href="#portfolio" class="mobile-nav-link block text-brand-muted hover:text-white py-2.5 border-b border-brand-border/50">Портфолио</a>
+            <a href="#documentation" class="mobile-nav-link block text-brand-muted hover:text-white py-2.5 border-b border-brand-border/50">Документация</a>
+            <a href="#calculator" class="mobile-nav-link block text-brand-muted hover:text-white py-2.5 border-b border-brand-border/50">Калькулятор</a>
+            <a href="#contacts" class="mobile-nav-link block text-brand-muted hover:text-white py-2.5">Контакты</a>
+            <div class="pt-3">
+                <a href="#calculator" class="mobile-nav-link block w-full bg-brand-orange text-center py-3.5 rounded-lg text-xs font-mono uppercase font-bold text-white shadow-lg shadow-brand-orange/20">
+                    Рассчитать проект
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. HERO-СЕКЦИЯ С ИНТЕРАКТИВНЫМ 3D-УЗЛОМ -->
+    <section id="hero" class="relative z-10 pt-32 pb-20 md:pt-40 md:pb-28">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                <!-- Левая колонка: УТП -->
+                <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                    <div class="inline-flex flex-wrap items-center justify-center lg:justify-start gap-2.5 px-3.5 py-1.5 rounded-full bg-brand-card border border-brand-border text-xs font-mono">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-brand-cyan font-semibold">Самозанятый (НПД)</span>
+                        <span class="text-brand-border">|</span>
+                        <span class="text-brand-muted">Договор с ЗМК и юрлицами • Безнал • Чек</span>
+                    </div>
+
+                    <h1 class="text-3xl sm:text-5xl lg:text-[50px] font-extrabold text-white tracking-tight leading-[1.15]">
+                        Деталировка <span class="text-brand-orange">КМД</span> любой сложности в <span class="text-brand-cyan">Tekla Structures</span>
+                    </h1>
+
+                    <p class="text-base sm:text-lg text-brand-muted max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                        Разработка рабочих деталировочных чертежей металлоконструкций с <strong class="text-white">нулевыми коллизиями</strong> на сборке. Прямая выгрузка управляющих файлов для станков с ЧПУ (<strong class="text-brand-cyan font-mono">NC / DSTV</strong>), контуров <strong class="text-brand-cyan font-mono">DXF</strong> и сводных BIM-моделей для цеха и монтажа.
+                    </p>
+
+                    <!-- Кнопки действий -->
+                    <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                        <a href="#calculator" class="w-full sm:w-auto bg-brand-orange hover:bg-orange-600 text-white px-8 py-4 rounded-xl font-mono font-bold text-sm tracking-wide shadow-xl shadow-brand-orange/25 transition-all flex items-center justify-center gap-3">
+                            <i class="fa-solid fa-calculator"></i>
+                            <span>РАССЧИТАТЬ ПРОЕКТ</span>
+                        </a>
+                        <a href="#portfolio" class="w-full sm:w-auto bg-brand-card hover:bg-brand-surface text-white border border-brand-border hover:border-brand-cyan px-7 py-4 rounded-xl font-mono text-sm tracking-wide transition-all flex items-center justify-center gap-2.5">
+                            <i class="fa-solid fa-layer-group text-brand-cyan"></i>
+                            <span>СМОТРЕТЬ ПОРТФОЛИО</span>
+                        </a>
+                    </div>
+
+                    <!-- Технические метрики -->
+                    <div class="grid grid-cols-3 gap-4 pt-6 border-t border-brand-border/80 max-w-xl mx-auto lg:mx-0">
+                        <div>
+                            <div class="text-xl sm:text-2xl font-mono font-bold text-white">0 коллизий</div>
+                            <div class="text-xs text-brand-muted mt-1">3D-проверка узлов и болтов</div>
+                        </div>
+                        <div>
+                            <div class="text-xl sm:text-2xl font-mono font-bold text-brand-cyan">NC / DSTV</div>
+                            <div class="text-xs text-brand-muted mt-1">Готовые файлы для ЧПУ</div>
+                        </div>
+                        <div>
+                            <div class="text-xl sm:text-2xl font-mono font-bold text-brand-orange">НПД / Чек</div>
+                            <div class="text-xs text-brand-muted mt-1">Официальный договор с ЗМК</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Правая колонка: Интерактивный 3D-просмотрщик узла -->
+                <div class="lg:col-span-5">
+                    <div class="relative w-full aspect-square max-w-[470px] mx-auto rounded-2xl glass-card overflow-hidden shadow-2xl border border-brand-border">
+                        
+                        <!-- Верхняя панель управления 3D-сценой -->
+                        <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2">
+                            <div class="px-2.5 py-1.5 rounded-lg bg-[#0f1419]/90 border border-brand-border flex items-center gap-2 text-[11px] font-mono text-brand-cyan">
+                                <i class="fa-solid fa-cube"></i>
+                                <span>3D-узел Tekla</span>
+                            </div>
+
+                            <!-- Кнопки сброса вида и каркасного/сплошного режима -->
+                            <div class="flex items-center gap-1.5">
+                                <button id="toggle-wireframe-btn" type="button" class="px-2.5 py-1.5 rounded-lg bg-[#0f1419]/90 hover:bg-brand-blue border border-brand-border hover:border-brand-cyan text-[11px] font-mono text-white transition-colors flex items-center gap-1.5" title="Переключить каркасный/сплошной режим">
+                                    <i class="fa-solid fa-border-all text-brand-cyan"></i>
+                                    <span id="wireframe-btn-text">Каркас</span>
+                                </button>
+                                <button id="reset-camera-btn" type="button" class="px-2.5 py-1.5 rounded-lg bg-[#0f1419]/90 hover:bg-brand-orange border border-brand-border hover:border-brand-orange text-[11px] font-mono text-white transition-colors flex items-center gap-1.5" title="Сбросить ракурс камеры">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                    <span>Сброс</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Канвас Three.js -->
+                        <div id="hero-node-canvas" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+                        <!-- Нижняя плашка спецификации узла -->
+                        <div class="absolute bottom-3 left-3 right-3 p-3.5 rounded-xl bg-[#0f1419]/92 border border-brand-border text-xs font-mono flex justify-between items-center z-10 pointer-events-none">
+                            <div>
+                                <span class="text-white block font-bold">Узел К-1 / База и фасонка фермы</span>
+                                <span class="text-[11px] text-brand-muted">Двутавр 35Б1 • Фасонка t=14мм • Болты М20</span>
+                            </div>
+                            <span class="px-2.5 py-1 bg-brand-orange/20 border border-brand-orange/50 text-brand-orange text-[11px] font-bold rounded shrink-0">
+                                КМД
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-center mt-2.5 text-[11px] font-mono text-brand-muted">
+                        <i class="fa-solid fa-hand-pointer text-brand-cyan mr-1"></i> Потяните мышью или пальцем для вращения 3D-модели
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. ПРЕИМУЩЕСТВА И ФОРМАТ РАБОТЫ -->
+    <section id="services" class="relative z-10 py-20 border-t border-brand-border/70 bg-[#0f1419]/65">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div class="max-w-3xl mb-14">
+                <div class="text-brand-orange font-mono text-xs uppercase tracking-widest mb-2">// Преимущества и формат сотрудничества</div>
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-white border-l-4 border-brand-orange pl-4">
+                    Точная деталировка КМД для заводов ЗМК и подрядчиков
+                </h2>
+                <p class="text-brand-muted mt-4 text-sm sm:text-base leading-relaxed">
+                    Специализируюсь исключительно на разработке чертежей деталировки КМД в среде <strong class="text-white">Tekla Structures</strong>. Готовая документация адаптируется под технологические карты и станочный парк вашего завода металлоконструкций.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                <!-- Преимущество 1: Tekla Structures -->
+                <div class="glass-card p-6 rounded-xl hover:border-brand-cyan transition-all group flex flex-col justify-between">
+                    <div>
+                        <div class="w-12 h-12 rounded-lg bg-brand-blue/20 border border-brand-blue/40 text-brand-cyan flex items-center justify-center text-xl mb-5 group-hover:bg-brand-blue group-hover:text-white transition-all">
+                            <i class="fa-solid fa-cubes"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-2">Деталировка в Tekla Structures</h3>
+                        <p class="text-brand-muted text-sm leading-relaxed">
+                            Полноценная параметрическая 3D-модель каждого элемента, фасонки, сварного шва и отверстия с автоматической нумерацией деталей и отправочных марок.
+                        </p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-brand-border/60 text-[11px] font-mono text-brand-cyan">
+                        ГОСТ 21.502-2016 / ЕСКД
+                    </div>
+                </div>
+
+                <!-- Преимущество 2: Выгрузка ЧПУ -->
+                <div class="glass-card p-6 rounded-xl hover:border-brand-orange transition-all group flex flex-col justify-between">
+                    <div>
+                        <div class="w-12 h-12 rounded-lg bg-brand-orange/20 border border-brand-orange/40 text-brand-orange flex items-center justify-center text-xl mb-5 group-hover:bg-brand-orange group-hover:text-white transition-all">
+                            <i class="fa-solid fa-microchip"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-2">Выгрузка файлов ЧПУ (NC / DSTV)</h3>
+                        <p class="text-brand-muted text-sm leading-relaxed">
+                            Генерация управляющих программ NC/DSTV для линий сверления, пиления и разметки профилей, а также разверток листовых деталей в DXF для плазмы и лазера.
+                        </p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-brand-border/60 text-[11px] font-mono text-brand-orange">
+                        NC1 / DSTV / DXF без ошибок
+                    </div>
+                </div>
+
+                <!-- Преимущество 3: Проверка коллизий -->
+                <div class="glass-card p-6 rounded-xl hover:border-brand-cyan transition-all group flex flex-col justify-between">
+                    <div>
+                        <div class="w-12 h-12 rounded-lg bg-brand-cyan/15 border border-brand-cyan/35 text-brand-cyan flex items-center justify-center text-xl mb-5 group-hover:bg-brand-cyan group-hover:text-brand-bg transition-all">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-2">3D-проверка коллизий</h3>
+                        <p class="text-brand-muted text-sm leading-relaxed">
+                            Автоматический и визуальный контроль пересечений металлопроката, зазоров под монтажный инструмент и габаритов отправочных марок при транспортировке.
+                        </p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-brand-border/60 text-[11px] font-mono text-brand-cyan">
+                        100% собираемость в цеху
+                    </div>
+                </div>
+
+                <!-- Преимущество 4: Статус Самозанятого (НПД) -->
+                <div class="glass-card p-6 rounded-xl hover:border-emerald-500 transition-all group flex flex-col justify-between">
+                    <div>
+                        <div class="w-12 h-12 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 flex items-center justify-center text-xl mb-5 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                            <i class="fa-solid fa-file-contract"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-2">Статус: Самозанятый (НПД)</h3>
+                        <p class="text-brand-muted text-sm leading-relaxed">
+                            Официальная работа по договору с юрлицами (заводами ЗМК, генподрядчиками) и физлицами. Оплата по безналичному расчету, выдача официальных чеков через «Мой налог».
+                        </p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-brand-border/60 text-[11px] font-mono text-emerald-400">
+                        Договор + Безнал + Чек НПД
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. ПОРТФОЛИО С ФИЛЬТРАМИ И ИЗОМЕТРИЧЕСКИМИ 3D-СХЕМАМИ (SVG) -->
+    <section id="portfolio" class="relative z-10 py-20 border-t border-brand-border/70">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+                <div>
+                    <div class="text-brand-orange font-mono text-xs uppercase tracking-widest mb-2">// Реализованные модели Tekla Structures</div>
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-white border-l-4 border-brand-orange pl-4">
+                        Портфолио проектов КМД
+                    </h2>
+                </div>
+
+                <!-- Фильтры портфолио -->
+                <div class="flex flex-wrap gap-2 font-mono text-xs">
+                    <button type="button" class="filter-btn active px-4 py-2.5 rounded-lg bg-brand-blue text-white font-bold transition-all" data-filter="all">
+                        Все
+                    </button>
+                    <button type="button" class="filter-btn px-4 py-2.5 rounded-lg bg-brand-card border border-brand-border text-brand-muted hover:text-white transition-all" data-filter="warehouse">
+                        Склады и ангары
+                    </button>
+                    <button type="button" class="filter-btn px-4 py-2.5 rounded-lg bg-brand-card border border-brand-border text-brand-muted hover:text-white transition-all" data-filter="industry">
+                        Промышленные цеха
+                    </button>
+                    <button type="button" class="filter-btn px-4 py-2.5 rounded-lg bg-brand-card border border-brand-border text-brand-muted hover:text-white transition-all" data-filter="stairs">
+                        Эстакады и лестницы
+                    </button>
+                </div>
+            </div>
+
+            <!-- Сетка из 6 карточек -->
+            <div id="portfolio-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+                
+                <!-- Карточка 1: Логистический склад 24×48 м -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="warehouse" onclick="openProjectModal(0)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <defs>
+                                <pattern id="tekla-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#38bdf8" stroke-width="0.4" opacity="0.22"/>
+                                </pattern>
+                            </defs>
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Оси и основание -->
+                            <polygon points="45,155 205,95 365,155 205,208" fill="rgba(37,99,235,0.06)" stroke="#263241" stroke-width="1"/>
+                            <!-- Колонны каркаса -->
+                            <g stroke="#2563eb" stroke-width="3.5">
+                                <line x1="65" y1="148" x2="65" y2="82"/>
+                                <line x1="135" y1="122" x2="135" y2="56"/>
+                                <line x1="205" y1="96" x2="205" y2="30"/>
+                                <line x1="205" y1="198" x2="205" y2="132"/>
+                                <line x1="275" y1="172" x2="275" y2="106"/>
+                                <line x1="345" y1="146" x2="345" y2="80"/>
+                            </g>
+                            <!-- Стропильные фермы из ГСП -->
+                            <g stroke="#f97316" stroke-width="2.2" fill="none">
+                                <polygon points="65,82 135,44 205,132 135,107"/>
+                                <line x1="135" y1="44" x2="135" y2="107"/>
+                                <line x1="100" y1="63" x2="100" y2="94"/>
+                                <line x1="170" y1="88" x2="170" y2="119"/>
+
+                                <polygon points="135,56 205,18 275,106 205,81"/>
+                                <line x1="205" y1="18" x2="205" y2="81"/>
+
+                                <polygon points="205,30 275,-8 345,80 275,55" transform="translate(0, 26)"/>
+                            </g>
+                            <!-- Прогоны и связи -->
+                            <g stroke="#38bdf8" stroke-width="1.2" opacity="0.85">
+                                <line x1="65" y1="82" x2="205" y2="30"/>
+                                <line x1="135" y1="44" x2="275" y2="18"/>
+                                <line x1="205" y1="132" x2="345" y2="80"/>
+                                <line x1="100" y1="63" x2="240" y2="24"/>
+                                <line x1="170" y1="88" x2="310" y2="52"/>
+                            </g>
+                            <!-- Инженерная выноска Tekla -->
+                            <circle cx="135" cy="107" r="4" fill="#f97316"/>
+                            <polyline points="135,107 105,178 40,178" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="42" y="173" fill="#f1f5f9" font-family="monospace" font-size="9">ФС-1 (ГСП 160x120x5)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            215 Тонн
+                        </span>
+                        <span class="absolute top-3 right-3 bg-brand-orange/20 px-2 py-1 rounded text-[10px] font-mono text-brand-orange border border-brand-orange/40">
+                            Склады и ангары
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Логистический склад 24×48 м
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Полная деталировка однопролетного складского каркаса со стропильными фермами из гнутосварных замкнутых профилей (ГСП), прогонами и связевым блоком.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-microchip text-brand-orange mr-1"></i> NC / DSTV + DXF</span>
+                            <span class="text-white">Срок: 12 дней</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Карточка 2: Производственный цех с подкрановыми балками -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="industry" onclick="openProjectModal(1)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Двухветвевые колонны цеха -->
+                            <g stroke="#2563eb" stroke-width="3">
+                                <line x1="75" y1="188" x2="75" y2="32"/>
+                                <line x1="90" y1="188" x2="90" y2="96"/>
+                                <line x1="195" y1="158" x2="195" y2="20"/>
+                                <line x1="210" y1="158" x2="210" y2="76"/>
+                                <line x1="315" y1="128" x2="315" y2="12"/>
+                                <line x1="330" y1="128" x2="330" y2="56"/>
+                            </g>
+                            <!-- Решетка двухветвевых колонн -->
+                            <g stroke="#38bdf8" stroke-width="1.2">
+                                <polyline points="75,182 90,162 75,142 90,122 75,102"/>
+                                <polyline points="195,152 210,132 195,112 210,92 195,76"/>
+                                <polyline points="315,122 330,102 315,82 330,62"/>
+                            </g>
+                            <!-- Сварная подкрановая балка и рельс -->
+                            <line x1="70" y1="98" x2="340" y2="52" stroke="#f97316" stroke-width="6.5"/>
+                            <line x1="70" y1="93" x2="340" y2="47" stroke="#f8fafc" stroke-width="2"/>
+                            <!-- Тормозная площадка -->
+                            <polygon points="75,96 315,55 292,47 52,88" fill="rgba(56,189,248,0.22)" stroke="#38bdf8" stroke-width="1"/>
+                            <!-- Выноска Tekla -->
+                            <circle cx="202" cy="76" r="4" fill="#f97316"/>
+                            <polyline points="202,76 240,168 345,168" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="242" y="163" fill="#f1f5f9" font-family="monospace" font-size="9">ПБ-1 (Кран г/п 20т)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            580 Тонн
+                        </span>
+                        <span class="absolute top-3 right-3 bg-brand-blue/25 px-2 py-1 rounded text-[10px] font-mono text-brand-cyan border border-brand-cyan/40">
+                            Промышленные цеха
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Производственный цех с подкрановыми балками
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Деталировка КМД ступенчатых двухветвевых колонн, сварных подкрановых балок с тормозными площадками, крановыми упорами и подстропильными фермами.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-cube text-brand-cyan mr-1"></i> Tekla + NC / IFC</span>
+                            <span class="text-white">Срок: 24 дня</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Карточка 3: Технологическая эстакада трубопроводов -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="stairs" onclick="openProjectModal(2)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Пространственные опоры эстакады -->
+                            <g stroke="#2563eb" stroke-width="3">
+                                <line x1="65" y1="185" x2="65" y2="88"/>
+                                <line x1="115" y1="200" x2="115" y2="103"/>
+                                <line x1="215" y1="142" x2="215" y2="45"/>
+                                <line x1="265" y1="157" x2="265" y2="60"/>
+                            </g>
+                            <!-- Связи опор -->
+                            <g stroke="#38bdf8" stroke-width="1.2">
+                                <line x1="65" y1="140" x2="115" y2="155"/>
+                                <line x1="65" y1="185" x2="115" y2="155"/>
+                                <line x1="215" y1="98" x2="265" y2="113"/>
+                                <line x1="215" y1="142" x2="265" y2="113"/>
+                            </g>
+                            <!-- Двухъярусные траверсы и пролетные фермы -->
+                            <g stroke="#f97316" stroke-width="2.5">
+                                <line x1="45" y1="92" x2="325" y2="20"/>
+                                <line x1="95" y1="107" x2="365" y2="35"/>
+                                <line x1="45" y1="68" x2="325" y2="-4"/>
+                                <line x1="95" y1="83" x2="365" y2="11"/>
+                            </g>
+                            <!-- Раскосы пролета -->
+                            <g stroke="#38bdf8" stroke-width="1.3">
+                                <polyline points="65,88 105,54 140,68 180,34 215,45 255,14"/>
+                                <polyline points="115,103 155,69 190,83 230,49 265,60 305,29"/>
+                            </g>
+                            <!-- Выноска Tekla -->
+                            <circle cx="180" cy="34" r="4" fill="#f97316"/>
+                            <polyline points="180,34 150,175 50,175" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="52" y="170" fill="#f1f5f9" font-family="monospace" font-size="9">ЭТ-1 (Траверса 2 яруса)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            140 Тонн
+                        </span>
+                        <span class="absolute top-3 right-3 bg-emerald-500/20 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/40">
+                            Эстакады и лестницы
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Технологическая эстакада трубопроводов
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Разработка чертежей КМД анкерных и промежуточных опор, двухъярусных траверс под трубопроводы и пролетных ферм с обслуживающими мостиками.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-microchip text-brand-orange mr-1"></i> NC / DXF + Ведомости</span>
+                            <span class="text-white">Срок: 10 дней</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Карточка 4: Каркас производственного корпуса -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="warehouse" onclick="openProjectModal(3)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Многопролетные рамы переменного сечения -->
+                            <g fill="rgba(37,99,235,0.22)" stroke="#2563eb" stroke-width="2">
+                                <polygon points="55,168 62,168 72,78 195,36 318,78 328,168 335,168 324,70 195,25 66,70"/>
+                                <polygon points="105,142 111,142 119,62 230,24 341,62 349,142 355,142 345,55 230,15 115,55" opacity="0.65"/>
+                            </g>
+                            <!-- Фланцевые узлы на высокопрочных болтах -->
+                            <g stroke="#f97316" stroke-width="3">
+                                <line x1="65" y1="74" x2="77" y2="84"/>
+                                <line x1="195" y1="25" x2="195" y2="39"/>
+                                <line x1="313" y1="84" x2="325" y2="74"/>
+                            </g>
+                            <!-- Фахверковые стойки и связи -->
+                            <g stroke="#38bdf8" stroke-width="1.3">
+                                <line x1="130" y1="168" x2="130" y2="54"/>
+                                <line x1="260" y1="168" x2="260" y2="54"/>
+                                <line x1="68" y1="125" x2="117" y2="62" stroke-dasharray="4 2"/>
+                                <line x1="68" y1="74" x2="117" y2="110" stroke-dasharray="4 2"/>
+                            </g>
+                            <circle cx="195" cy="32" r="4" fill="#f97316"/>
+                            <polyline points="195,32 235,125 335,125" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="238" y="120" fill="#f1f5f9" font-family="monospace" font-size="9">Фланец 30мм (Болт М24)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            310 Тонн
+                        </span>
+                        <span class="absolute top-3 right-3 bg-brand-orange/20 px-2 py-1 rounded text-[10px] font-mono text-brand-orange border border-brand-orange/40">
+                            Склады и ангары
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Каркас производственного корпуса
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Деталировка рам переменного сечения (ЛМК) из сварных двутавров с фланцевыми монтажными стыками, торцевым фахверком и прогонами кровли.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-cube text-brand-cyan mr-1"></i> DXF раскрой стенки</span>
+                            <span class="text-white">Срок: 15 дней</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Карточка 5: Этажерка технологического оборудования -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="industry" onclick="openProjectModal(4)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Несущие колонны этажерки -->
+                            <g stroke="#2563eb" stroke-width="3.2">
+                                <line x1="85" y1="188" x2="85" y2="28"/>
+                                <line x1="195" y1="188" x2="195" y2="28"/>
+                                <line x1="305" y1="188" x2="305" y2="28"/>
+                            </g>
+                            <!-- Балочные клетки 3 перекрытий -->
+                            <g stroke="#f97316" stroke-width="2.5">
+                                <line x1="75" y1="142" x2="315" y2="142"/>
+                                <line x1="75" y1="90" x2="315" y2="90"/>
+                                <line x1="75" y1="38" x2="315" y2="38"/>
+                            </g>
+                            <!-- Крестовые вертикальные связи -->
+                            <g stroke="#38bdf8" stroke-width="1.4">
+                                <line x1="85" y1="142" x2="195" y2="90"/>
+                                <line x1="195" y1="142" x2="85" y2="90"/>
+                                <line x1="195" y1="90" x2="305" y2="38"/>
+                                <line x1="305" y1="90" x2="195" y2="38"/>
+                            </g>
+                            <!-- Выноска Tekla -->
+                            <circle cx="195" cy="90" r="4" fill="#f97316"/>
+                            <polyline points="195,90 235,168 345,168" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="238" y="163" fill="#f1f5f9" font-family="monospace" font-size="9">Узел связи УС-3 (М20)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            265 Тонн
+                        </span>
+                        <span class="absolute top-3 right-3 bg-brand-blue/25 px-2 py-1 rounded text-[10px] font-mono text-brand-cyan border border-brand-cyan/40">
+                            Промышленные цеха
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Этажерка технологического оборудования
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Полный комплект КМД на трехъярусную этажерку с тяжелыми балочными клетками, проемами под технологические аппараты, настилом и связями.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-microchip text-brand-orange mr-1"></i> NC / DSTV + Excel</span>
+                            <span class="text-white">Срок: 14 дней</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Карточка 6: Наружные пожарные лестницы и площадки -->
+                <article class="portfolio-card glass-card rounded-xl overflow-hidden hover:border-brand-cyan transition-all group flex flex-col cursor-pointer" data-category="stairs" onclick="openProjectModal(5)">
+                    <div class="relative h-56 bg-[#111720] border-b border-brand-border overflow-hidden">
+                        <svg viewBox="0 0 400 220" class="w-full h-full group-hover:scale-105 transition-transform duration-500">
+                            <rect width="400" height="220" fill="url(#tekla-grid)"/>
+                            <!-- Косоуры лестничных маршей -->
+                            <g stroke="#2563eb" stroke-width="3.2">
+                                <line x1="105" y1="190" x2="205" y2="120"/>
+                                <line x1="138" y1="196" x2="238" y2="126"/>
+                                <line x1="205" y1="120" x2="105" y2="50"/>
+                                <line x1="238" y1="126" x2="138" y2="56"/>
+                            </g>
+                            <!-- Площадки с решетчатым настилом -->
+                            <g stroke="#f97316" stroke-width="3">
+                                <line x1="205" y1="120" x2="280" y2="120"/>
+                                <line x1="238" y1="126" x2="280" y2="126"/>
+                                <line x1="95" y1="50" x2="155" y2="50"/>
+                            </g>
+                            <!-- Ограждения маршей и площадок -->
+                            <g stroke="#38bdf8" stroke-width="1.3">
+                                <polyline points="105,190 105,164 205,94 280,94 280,120"/>
+                                <polyline points="205,120 205,94 105,24 105,50"/>
+                            </g>
+                            <!-- Выноска Tekla -->
+                            <circle cx="242" cy="123" r="4" fill="#f97316"/>
+                            <polyline points="242,123 275,175 365,175" fill="none" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="278" y="170" fill="#f1f5f9" font-family="monospace" font-size="9">Марш ЛМ-1 (П2)</text>
+                        </svg>
+                        <span class="absolute top-3 left-3 bg-[#0f1419]/90 px-2.5 py-1 rounded text-[11px] font-mono text-brand-cyan border border-brand-border">
+                            42 Тонны
+                        </span>
+                        <span class="absolute top-3 right-3 bg-emerald-500/20 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/40">
+                            Эстакады и лестницы
+                        </span>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-brand-cyan transition-colors">
+                                Наружные пожарные лестницы и площадки
+                            </h3>
+                            <p class="text-xs text-brand-muted mt-2 leading-relaxed">
+                                Деталировка многомаршевых эвакуационных лестниц типа П2 и вертикальных лестниц П1 со ступенями из настила ПВЛ и узлами крепления к фасаду.
+                            </p>
+                        </div>
+                        <div class="pt-3 border-t border-brand-border/60 flex justify-between items-center text-[11px] font-mono text-brand-muted">
+                            <span><i class="fa-solid fa-cube text-brand-cyan mr-1"></i> PDF + DWG + DXF</span>
+                            <span class="text-white">Срок: 5 дней</span>
+                        </div>
+                    </div>
+                </article>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. СОСТАВ ПЕРЕДАВАЕМОЙ ДОКУМЕНТАЦИИ КМД -->
+    <section id="documentation" class="relative z-10 py-20 border-t border-brand-border/70 bg-[#0f1419]/75">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+                <div>
+                    <div class="text-brand-cyan font-mono text-xs uppercase tracking-widest mb-2">// Выходные данные для цеха и снабжения</div>
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-white border-l-4 border-brand-cyan pl-4">
+                        Состав передаваемой документации КМД
+                    </h2>
+                </div>
+                <p class="text-brand-muted text-sm max-w-md font-mono">
+                    Возможна поэтапная выдача комплекта по захваткам для быстрого запуска металла в заготовку.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Карточка 1 -->
+                <div class="glass-card p-6 rounded-xl flex items-start justify-between gap-4 hover:border-brand-cyan/70 transition-all">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-brand-blue/20 border border-brand-blue/40 text-brand-cyan flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-file-pdf text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-bold text-white">Чертежи отправочных марок и деталей</h3>
+                            <p class="text-xs sm:text-sm text-brand-muted mt-1.5 leading-relaxed">
+                                Сборочные чертежи с таблицами сварных швов, контрольными размерами и схемами расположения элементов, а также рабочие чертежи отдельных деталей.
+                            </p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-lg bg-brand-surface border border-brand-border text-brand-orange font-mono text-xs font-bold shrink-0">
+                        PDF / DWG
+                    </span>
+                </div>
+
+                <!-- Карточка 2 -->
+                <div class="glass-card p-6 rounded-xl flex items-start justify-between gap-4 hover:border-brand-cyan/70 transition-all">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-brand-orange/20 border border-brand-orange/40 text-brand-orange flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-table-list text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-bold text-white">Ведомости марок, метизов и выборка металла</h3>
+                            <p class="text-xs sm:text-sm text-brand-muted mt-1.5 leading-relaxed">
+                                Сводные ведомости металлопроката по профилям и маркам стали, ведомости заводских и монтажных болтов, ведомости отправочных марок для отгрузки.
+                            </p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-lg bg-brand-surface border border-brand-border text-brand-cyan font-mono text-xs font-bold shrink-0">
+                        PDF / XLSX
+                    </span>
+                </div>
+
+                <!-- Карточка 3 -->
+                <div class="glass-card p-6 rounded-xl flex items-start justify-between gap-4 hover:border-brand-cyan/70 transition-all">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-brand-cyan/15 border border-brand-cyan/35 text-brand-cyan flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-microchip text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-bold text-white">Файлы для станков с ЧПУ</h3>
+                            <p class="text-xs sm:text-sm text-brand-muted mt-1.5 leading-relaxed">
+                                Управляющие файлы NC / DSTV для линий пиления, сверления и разметки проката, а также контуры листовых деталей DXF для станков плазменной и лазерной резки.
+                            </p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-lg bg-brand-surface border border-brand-border text-brand-orange font-mono text-xs font-bold shrink-0">
+                        NC / DSTV / DXF
+                    </span>
+                </div>
+
+                <!-- Карточка 4 -->
+                <div class="glass-card p-6 rounded-xl flex items-start justify-between gap-4 hover:border-brand-cyan/70 transition-all">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-cubes text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-bold text-white">Сводная 3D BIM-модель для контроля сборки</h3>
+                            <p class="text-xs sm:text-sm text-brand-muted mt-1.5 leading-relaxed">
+                                Интерактивная 3D-модель каркаса в формате IFC для наглядной проверки каждого узла в цеху и на стройплощадке через бесплатный Trimble Connect.
+                            </p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-lg bg-brand-surface border border-brand-border text-emerald-400 font-mono text-xs font-bold shrink-0">
+                        IFC / Trimble
+                    </span>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. ИНТЕРАКТИВНЫЙ КВИЗ-КАЛЬКУЛЯТОР СТОИМОСТИ И СРОКОВ КМД (3 ШАГА) -->
+    <section id="calculator" class="relative z-10 py-20 border-t border-brand-border/70">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div class="text-center mb-10">
+                <div class="text-brand-orange font-mono text-xs uppercase tracking-widest mb-2">// Экспресс-оценка проекта</div>
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Калькулятор стоимости и сроков КМД</h2>
+                <p class="text-brand-muted text-sm mt-2 max-w-xl mx-auto">
+                    Пройдите 3 шага — получите предварительный расчет стоимости разработки в Tekla Structures и сроков выдачи чертежей.
+                </p>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 sm:p-10 shadow-2xl border border-brand-border">
+                
+                <!-- Прогресс-бар квиза -->
+                <div class="mb-8">
+                    <div class="flex justify-between text-xs font-mono text-brand-muted mb-2">
+                        <span id="quiz-step-label">Шаг 1 из 3: Тип конструкции</span>
+                        <span id="quiz-percent" class="text-brand-orange font-bold">33%</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-[#0f1419] rounded-full overflow-hidden border border-brand-border">
+                        <div id="quiz-bar" class="h-full bg-gradient-to-r from-brand-blue via-brand-cyan to-brand-orange w-1/3 transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- ШАГ 1: Выбор типа конструкции -->
+                <div id="step-1" class="quiz-step space-y-4">
+                    <h3 class="text-lg font-bold text-white mb-4">Шаг 1. Выберите тип металлоконструкций:</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <label class="cursor-pointer p-4 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-start gap-3.5 transition-all">
+                            <input type="radio" name="obj_type" value="warehouse" data-label="Склад / ангар" class="mt-1 accent-brand-orange" checked>
+                            <div>
+                                <div class="font-bold text-white text-sm">Склад / ангар</div>
+                                <div class="text-xs text-brand-muted mt-1">Одно- и многопролетные каркасы, фермы, рамы ЛМК, прогоны</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer p-4 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-start gap-3.5 transition-all">
+                            <input type="radio" name="obj_type" value="industry" data-label="Промышленный цех" class="mt-1 accent-brand-orange">
+                            <div>
+                                <div class="font-bold text-white text-sm">Промышленный цех</div>
+                                <div class="text-xs text-brand-muted mt-1">Каркасы с мостовыми кранами, этажерки, галереи</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer p-4 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-start gap-3.5 transition-all">
+                            <input type="radio" name="obj_type" value="stairs" data-label="Лестницы / площадки / эстакады" class="mt-1 accent-brand-orange">
+                            <div>
+                                <div class="font-bold text-white text-sm">Лестницы / площадки / эстакады</div>
+                                <div class="text-xs text-brand-muted mt-1">Пожарные лестницы П1/П2, ограждения, трубопроводные эстакады</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer p-4 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-start gap-3.5 transition-all">
+                            <input type="radio" name="obj_type" value="custom" data-label="Нестандартные конструкции" class="mt-1 accent-brand-orange">
+                            <div>
+                                <div class="font-bold text-white text-sm">Нестандартные конструкции</div>
+                                <div class="text-xs text-brand-muted mt-1">Бункеры, силосы, козырьки, фахверк и индивидуальные узлы</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ШАГ 2: Ориентировочный тоннаж (ползунок + пресеты) и наличие исходников -->
+                <div id="step-2" class="quiz-step hidden space-y-6">
+                    <div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h3 class="text-lg font-bold text-white">Шаг 2. Укажите ориентировочный тоннаж:</h3>
+                            <span id="tonnage-display" class="px-3 py-1 rounded-lg bg-brand-orange/20 border border-brand-orange/50 text-brand-orange font-mono text-base font-bold">
+                                80 тонн
+                            </span>
+                        </div>
+
+                        <!-- Ползунок тоннажа -->
+                        <div class="p-5 rounded-xl bg-[#0f1419]/90 border border-brand-border space-y-4">
+                            <input type="range" id="tonnage-slider" min="5" max="450" step="5" value="80" class="kmd-slider">
+                            
+                            <!-- Быстрые кнопки диапазонов -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
+                                <button type="button" class="ton-preset-btn py-2 px-3 rounded-lg bg-brand-surface hover:bg-brand-blue border border-brand-border text-brand-muted hover:text-white transition-colors" data-tons="25">
+                                    до 30 т
+                                </button>
+                                <button type="button" class="ton-preset-btn py-2 px-3 rounded-lg bg-brand-blue border border-brand-cyan text-white font-bold transition-colors" data-tons="80">
+                                    30–100 т
+                                </button>
+                                <button type="button" class="ton-preset-btn py-2 px-3 rounded-lg bg-brand-surface hover:bg-brand-blue border border-brand-border text-brand-muted hover:text-white transition-colors" data-tons="200">
+                                    100–300 т
+                                </button>
+                                <button type="button" class="ton-preset-btn py-2 px-3 rounded-lg bg-brand-surface hover:bg-brand-blue border border-brand-border text-brand-muted hover:text-white transition-colors" data-tons="380">
+                                    более 300 т
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-white mb-2.5">Наличие исходных чертежей / ТЗ:</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="cursor-pointer p-3.5 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-center gap-3">
+                                <input type="radio" name="has_drawings" value="Полный комплект исходников (PDF / DWG)" class="accent-brand-orange" checked>
+                                <span class="text-xs sm:text-sm text-white">Есть исходные чертежи (PDF / DWG)</span>
+                            </label>
+                            <label class="cursor-pointer p-3.5 rounded-xl border border-brand-border hover:border-brand-cyan bg-[#0f1419]/85 flex items-center gap-3">
+                                <input type="radio" name="has_drawings" value="Эскизы / габаритные схемы / ТЗ" class="accent-brand-orange">
+                                <span class="text-xs sm:text-sm text-white">Есть эскизы и габаритные схемы</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ШАГ 3: Предварительный расчет + форма отправки -->
+                <div id="step-3" class="quiz-step hidden space-y-5">
+                    
+                    <!-- Карточка предварительного расчета -->
+                    <div class="p-5 rounded-xl bg-gradient-to-r from-brand-blue/15 to-brand-orange/15 border border-brand-cyan/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <div class="text-xs font-mono text-brand-cyan uppercase">Ориентировочная стоимость КМД:</div>
+                            <div id="calc-result-price" class="text-2xl sm:text-3xl font-mono font-extrabold text-white mt-1">от 48 000 ₽</div>
+                            <div id="calc-result-summary" class="text-[11px] font-mono text-brand-muted mt-1">Склад / ангар • ~80 тонн</div>
+                        </div>
+                        <div class="sm:text-right">
+                            <div class="text-xs font-mono text-brand-muted">Примерный срок выдачи:</div>
+                            <div id="calc-result-days" class="text-lg font-mono font-bold text-brand-orange mt-1">6 – 9 рабочих дней</div>
+                            <div class="text-[11px] font-mono text-emerald-400 mt-1">Договор НПД + Чек</div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-mono text-brand-muted mb-1.5">Ваше имя или организация *</label>
+                                <input type="text" id="quiz-name" placeholder="ООО «ЗМК Профиль» / Алексей" class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-brand-muted mb-1.5">Телефон или Telegram *</label>
+                                <input type="text" id="quiz-contact" placeholder="+7 (996) 779-11-52 / @username" class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono text-brand-muted mb-1.5">Комментарий или ссылка на ТЗ (Яндекс.Диск / Облако)</label>
+                            <textarea id="quiz-comment" rows="2" placeholder="Укажите требования к выдаче файлов ЧПУ (NC/DSTV) или вставьте ссылку на исходники..." class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Уведомление об отправке -->
+                    <div id="quiz-feedback" class="hidden p-4 rounded-xl text-xs font-mono leading-relaxed"></div>
+                </div>
+
+                <!-- Кнопки управления квизом -->
+                <div class="mt-8 pt-6 border-t border-brand-border/70 flex justify-between items-center">
+                    <button id="quiz-prev" type="button" class="hidden px-5 py-3 rounded-lg border border-brand-border text-brand-muted hover:text-white font-mono text-xs uppercase transition-all">
+                        <i class="fa-solid fa-arrow-left mr-2"></i> Назад
+                    </button>
+                    <div id="quiz-spacer"></div>
+                    <button id="quiz-next" type="button" class="bg-brand-orange hover:bg-orange-600 text-white px-7 py-3.5 rounded-lg font-mono font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-brand-orange/25">
+                        <span>Далее</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. КОНТАКТЫ И ФУТЕР -->
+    <section id="contacts" class="relative z-10 py-20 border-t border-brand-border/70 bg-[#0f1419]/92">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                
+                <!-- Левая колонка: Контакты и реквизиты НПД -->
+                <div class="lg:col-span-5 space-y-6">
+                    <div>
+                        <div class="text-brand-orange font-mono text-xs uppercase tracking-widest mb-2">// Прямая связь с инженером</div>
+                        <h2 class="text-3xl font-extrabold text-white border-l-4 border-brand-orange pl-4">
+                            Контакты и реквизиты
+                        </h2>
+                        <p class="text-brand-muted text-sm mt-4 leading-relaxed">
+                            Отправьте исходные чертежи на оценку — в течение рабочего дня назову точную стоимость за тонну или за весь комплект КМД и согласуем график выдачи марок.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3.5">
+                        <a href="https://t.me/+79967791152" target="_blank" class="flex items-center gap-4 p-4 rounded-xl glass-card hover:border-brand-cyan transition-all group">
+                            <div class="w-11 h-11 rounded-lg bg-brand-blue/20 text-brand-cyan flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                                <i class="fa-brands fa-telegram"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-mono text-brand-muted">Telegram / WhatsApp (напрямую)</div>
+                                <div class="text-white font-bold group-hover:text-brand-cyan transition-colors">+7 (996) 779-11-52</div>
+                            </div>
+                        </a>
+
+                        <a href="https://wa.me/79967791152" target="_blank" class="flex items-center gap-4 p-4 rounded-xl glass-card hover:border-emerald-500 transition-all group">
+                            <div class="w-11 h-11 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-mono text-brand-muted">WhatsApp / Телефон</div>
+                                <div class="text-white font-bold group-hover:text-emerald-400 transition-colors">+7 (996) 779-11-52</div>
+                            </div>
+                        </a>
+
+                        <a href="mailto:khasanb2s19@gmail.com" class="flex items-center gap-4 p-4 rounded-xl glass-card hover:border-brand-orange transition-all group">
+                            <div class="w-11 h-11 rounded-lg bg-brand-orange/20 text-brand-orange flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
+                                <i class="fa-regular fa-envelope"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-mono text-brand-muted">Email (для отправки DWG / PDF / ТЗ)</div>
+                                <div class="text-white font-bold group-hover:text-brand-orange transition-colors">khasanb2s19@gmail.com</div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Карточка статуса Самозанятого (НПД) -->
+                    <div class="p-4 rounded-xl bg-brand-card border border-brand-border text-xs font-mono text-brand-muted space-y-1.5">
+                        <div class="flex items-center gap-2 text-emerald-400 font-bold">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>Официальный статус: Самозанятый (НПД)</span>
+                        </div>
+                        <div>• Прямой договор с заводами ЗМК, юрлицами и физлицами</div>
+                        <div>• Оплата по безналичному расчету на расчетный счет</div>
+                        <div>• Формирование официального чека в приложении «Мой налог»</div>
+                    </div>
+                </div>
+
+                <!-- Правая колонка: Форма быстрой связи -->
+                <div class="lg:col-span-7 glass-card rounded-2xl p-6 sm:p-8 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2.5">
+                            <i class="fa-solid fa-paper-plane text-brand-orange"></i>
+                            <span>Быстрая отправка запроса на КМД</span>
+                        </h3>
+                        <p class="text-xs text-brand-muted mb-6 font-mono">
+                            Гарантирую полную конфиденциальность переданной технической документации.
+                        </p>
+
+                        <form id="direct-contact-form" class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-mono text-brand-muted mb-1.5">Ваше имя / Компания *</label>
+                                    <input type="text" id="contact-name" required placeholder="Сергей / ЗМК МеталлСтрой" class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-mono text-brand-muted mb-1.5">Телефон / Telegram / Email *</label>
+                                    <input type="text" id="contact-reach" required placeholder="+7 (___) ___-__-__ / @telegram" class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-mono text-brand-muted mb-1.5">Описание задачи и ссылка на файлы *</label>
+                                <textarea id="contact-msg" rows="4" required placeholder="Например: Складской корпус ~110 тонн, исходные чертежи в DWG. Нужен комплект КМД и файлы NC/DSTV для станка Voortman." class="w-full bg-[#0f1419] border border-brand-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-cyan"></textarea>
+                            </div>
+
+                            <div id="direct-form-feedback" class="hidden p-3.5 rounded-lg text-xs font-mono"></div>
+
+                            <button type="submit" class="w-full bg-brand-blue hover:bg-blue-600 text-white py-4 rounded-xl font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-brand-blue/25">
+                                Отправить заявку инженеру КМД
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Футер -->
+            <footer class="mt-16 pt-8 border-t border-brand-border/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-brand-muted font-mono">
+                <div>© 2026 КМД ПРО — Деталировка металлоконструкций в Tekla Structures</div>
+                <div>Статус: Самозанятый (НПД) • NC / DSTV / DXF / IFC</div>
+            </footer>
+        </div>
+    </section>
+
+    <!-- МОДАЛЬНОЕ ОКНО ПРОЕКТА ПОРТФОЛИО -->
+    <div id="project-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-brand-card border border-brand-border rounded-2xl overflow-hidden relative shadow-2xl">
+            <button type="button" onclick="closeProjectModal()" aria-label="Закрыть окно" class="absolute top-4 right-4 z-10 w-10 h-10 bg-[#0f1419] border border-brand-border text-white rounded-full flex items-center justify-center hover:border-brand-orange hover:text-brand-orange transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div id="modal-preview-box" class="h-64 w-full bg-[#111720] border-b border-brand-border flex items-center justify-center p-4"></div>
+            <div class="p-6 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span id="modal-badge" class="px-2.5 py-1 rounded bg-brand-orange/20 text-brand-orange font-mono text-xs font-bold"></span>
+                    <span id="modal-specs" class="text-xs font-mono text-brand-cyan"></span>
+                </div>
+                <h3 id="modal-title" class="text-2xl font-bold text-white"></h3>
+                <p id="modal-desc" class="text-sm text-brand-muted leading-relaxed"></p>
+                <div id="modal-deliverables" class="p-3.5 rounded-xl bg-[#0f1419] border border-brand-border text-xs font-mono text-brand-muted leading-relaxed"></div>
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" onclick="closeProjectModal()" class="px-4 py-2.5 rounded-lg border border-brand-border text-brand-muted hover:text-white text-xs font-mono">
+                        Закрыть
+                    </button>
+                    <a href="#calculator" onclick="closeProjectModal()" class="bg-brand-orange hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg text-xs font-mono font-bold uppercase">
+                        Рассчитать похожий объект
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- СКРИПТЫ -->
+    <script>
+        /* ---------------------------------------------------------------------
+           1. ФОНОВЫЙ FIXED 3D-КАРКАС ПРОМЫШЛЕННОГО ЗДАНИЯ (THREE.JS)
+        --------------------------------------------------------------------- */
+        function initBackgroundFrame() {
+            const container = document.getElementById('bg-3d-canvas');
+            if (!container || typeof THREE === 'undefined') return;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(19, 12, 23);
+            camera.lookAt(0, 2.5, 0);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            container.appendChild(renderer.domElement);
+
+            const frameGroup = new THREE.Group();
+
+            const colMat = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.45 });
+            const trussMat = new THREE.LineBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.42 });
+            const purlinMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 });
+
+            const bays = 5;
+            const baySpacing = 5.2;
+            const span = 14;
+            const colHeight = 7;
+            const roofPeak = 9.6;
+
+            for (let i = 0; i <= bays; i++) {
+                const z = (i - bays / 2) * baySpacing;
+
+                // Колонны
+                frameGroup.add(
+                    new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(-span / 2, 0, z),
+                        new THREE.Vector3(-span / 2, colHeight, z)
+                    ]), colMat),
+                    new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(span / 2, 0, z),
+                        new THREE.Vector3(span / 2, colHeight, z)
+                    ]), colMat)
+                );
+
+                // Стропильная ферма
+                frameGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-span / 2, colHeight, z),
+                    new THREE.Vector3(0, roofPeak, z),
+                    new THREE.Vector3(span / 2, colHeight, z),
+                    new THREE.Vector3(-span / 2, colHeight, z)
+                ]), trussMat));
+
+                // Решетка фермы
+                frameGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-span / 4, colHeight, z),
+                    new THREE.Vector3(-span / 4, (colHeight + roofPeak) / 2, z),
+                    new THREE.Vector3(0, colHeight, z),
+                    new THREE.Vector3(0, roofPeak, z),
+                    new THREE.Vector3(span / 4, colHeight, z),
+                    new THREE.Vector3(span / 4, (colHeight + roofPeak) / 2, z)
+                ]), trussMat));
+            }
+
+            // Прогоны покрытия и подкрановые пути
+            const zStart = (-bays / 2) * baySpacing;
+            const zEnd = (bays / 2) * baySpacing;
+            const longitudinal = [
+                [-span / 2, colHeight],
+                [span / 2, colHeight],
+                [-span / 4, (colHeight + roofPeak) / 2],
+                [span / 4, (colHeight + roofPeak) / 2],
+                [0, roofPeak],
+                [-span / 2, colHeight * 0.72],
+                [span / 2, colHeight * 0.72]
+            ];
+
+            longitudinal.forEach(([x, y]) => {
+                frameGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x, y, zStart),
+                    new THREE.Vector3(x, y, zEnd)
+                ]), purlinMat));
+            });
+
+            scene.add(frameGroup);
+
+            function animateBg() {
+                requestAnimationFrame(animateBg);
+                frameGroup.rotation.y += 0.0012;
+                renderer.render(scene, camera);
+            }
+            animateBg();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        /* ---------------------------------------------------------------------
+           2. ИНТЕРАКТИВНЫЙ 3D-ПРОСМОТРЩИК СТАЛЬНОГО УЗЛА В HERO (THREE.JS)
+        --------------------------------------------------------------------- */
+        function initHeroNodeViewer() {
+            const container = document.getElementById('hero-node-canvas');
+            if (!container || typeof THREE === 'undefined') return;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111720);
+
+            const defaultCamPos = new THREE.Vector3(5.2, 4.0, 6.2);
+            const camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.copy(defaultCamPos);
+            camera.lookAt(0, 0.2, 0);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // Освещение
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const keyLight = new THREE.DirectionalLight(0x38bdf8, 1.35);
+            keyLight.position.set(6, 10, 8);
+            scene.add(keyLight);
+
+            const rimLight = new THREE.DirectionalLight(0xf97316, 0.95);
+            rimLight.position.set(-6, -3, -5);
+            scene.add(rimLight);
+
+            const nodeGroup = new THREE.Group();
+
+            // Материалы с поддержкой переключения каркасного/сплошного режима
+            const colSteelMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.75, roughness: 0.25 });
+            const flangeMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, metalness: 0.8, roughness: 0.2 });
+            const gussetMat = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.65, roughness: 0.3 });
+            const boltMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.9, roughness: 0.15 });
+            const allMaterials = [colSteelMat, flangeMat, gussetMat, boltMat];
+
+            // Двутавровая колонна (стенка + 2 полки)
+            const web = new THREE.Mesh(new THREE.BoxGeometry(0.12, 4.6, 0.7), colSteelMat);
+            const flangeF = new THREE.Mesh(new THREE.BoxGeometry(0.66, 4.6, 0.12), flangeMat);
+            flangeF.position.z = 0.35;
+            const flangeB = new THREE.Mesh(new THREE.BoxGeometry(0.66, 4.6, 0.12), flangeMat);
+            flangeB.position.z = -0.35;
+            nodeGroup.add(web, flangeF, flangeB);
+
+            // Опорная база колонны с ребрами жесткости
+            const basePlate = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.14, 1.45), gussetMat);
+            basePlate.position.y = -2.3;
+            const rib1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.4), gussetMat);
+            rib1.position.set(0.45, -1.96, 0);
+            const rib2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.4), gussetMat);
+            rib2.position.set(-0.45, -1.96, 0);
+            nodeGroup.add(basePlate, rib1, rib2);
+
+            // Опорная фасоночная пластина узла фермы
+            const gussetPlate = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.08), gussetMat);
+            gussetPlate.position.set(0.58, 0.4, 0);
+            nodeGroup.add(gussetPlate);
+
+            // Раскосы фермы (верхний и нижний)
+            const braceTop = new THREE.Mesh(new THREE.BoxGeometry(0.28, 3.0, 0.28), colSteelMat);
+            braceTop.rotation.z = -Math.PI / 4;
+            braceTop.position.set(1.38, 1.2, 0);
+
+            const braceBottom = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.26, 0.26), colSteelMat);
+            braceBottom.position.set(1.45, 0.15, 0);
+            nodeGroup.add(braceTop, braceBottom);
+
+            // Болтовые соединения (болты М20)
+            const boltGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.18, 6);
+            boltGeo.rotateX(Math.PI / 2);
+            const boltPositions = [
+                [0.48, 0.15], [0.82, 0.15], [1.12, 0.15],
+                [0.52, 0.48], [0.82, 0.65], [1.05, 0.88]
+            ];
+            boltPositions.forEach(([bx, by]) => {
+                const bolt = new THREE.Mesh(boltGeo, boltMat);
+                bolt.position.set(bx, by, 0);
+                nodeGroup.add(bolt);
+            });
+
+            scene.add(nodeGroup);
+
+            // Сетка основания
+            const grid = new THREE.GridHelper(8, 16, 0x38bdf8, 0x263241);
+            grid.position.y = -2.38;
+            scene.add(grid);
+
+            // Управление вращением мышью и касаниями
+            let isDragging = false;
+            let prevPos = { x: 0, y: 0 };
+
+            const startDrag = (x, y) => {
+                isDragging = true;
+                prevPos = { x, y };
+            };
+            const moveDrag = (x, y) => {
+                if (!isDragging) return;
+                nodeGroup.rotation.y += (x - prevPos.x) * 0.012;
+                nodeGroup.rotation.x += (y - prevPos.y) * 0.012;
+                prevPos = { x, y };
+            };
+
+            container.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+            window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+            window.addEventListener('mouseup', () => isDragging = false);
+
+            container.addEventListener('touchstart', e => {
+                if (e.touches.length) startDrag(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: true });
+            container.addEventListener('touchmove', e => {
+                if (e.touches.length) moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: true });
+            window.addEventListener('touchend', () => isDragging = false);
+
+            // Кнопка сброса вида
+            document.getElementById('reset-camera-btn').addEventListener('click', () => {
+                nodeGroup.rotation.set(0, 0, 0);
+                camera.position.copy(defaultCamPos);
+                camera.lookAt(0, 0.2, 0);
+            });
+
+            // Кнопка переключения каркасного / сплошного режима
+            let isWireframe = false;
+            const wireframeBtn = document.getElementById('toggle-wireframe-btn');
+            const wireframeText = document.getElementById('wireframe-btn-text');
+
+            wireframeBtn.addEventListener('click', () => {
+                isWireframe = !isWireframe;
+                allMaterials.forEach(mat => {
+                    mat.wireframe = isWireframe;
+                });
+                wireframeText.innerText = isWireframe ? 'Сплошной' : 'Каркас';
+            });
+
+            function animateHero() {
+                requestAnimationFrame(animateHero);
+                if (!isDragging) nodeGroup.rotation.y += 0.004;
+                renderer.render(scene, camera);
+            }
+            animateHero();
+
+            window.addEventListener('resize', () => {
+                if (!container.clientWidth) return;
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        /* ---------------------------------------------------------------------
+           3. ФИЛЬТРАЦИЯ ПОРТФОЛИО И МОДАЛЬНОЕ ОКНО
+        --------------------------------------------------------------------- */
+        const projectDetails = [
+            {
+                badge: 'Склады и ангары',
+                specs: 'Тоннаж: 215 т • Срок: 12 дней • Tekla Structures',
+                title: 'Логистический склад 24×48 м',
+                desc: 'Разработка полного комплекта рабочих чертежей деталировки КМД однопролетного складского каркаса. Выполнена проработка узлов опирания стропильных ферм из гнутосварных профилей (ГСП), фахверковых стоек, прогонов и связевых блоков.',
+                deliverables: 'Выдано: Чертежи отправочных марок и деталей (PDF, DWG), файлы NC/DSTV для линий пиления и сверления, раскрой фасонок DXF, ведомости металла и метизов (XLSX), сводная 3D-модель IFC.'
+            },
+            {
+                badge: 'Промышленные цеха',
+                specs: 'Тоннаж: 580 т • Срок: 24 дня • Tekla Structures',
+                title: 'Производственный цех с подкрановыми балками',
+                desc: 'Деталировка тяжелого промышленного корпуса под мостовые краны грузоподъемностью 20 т. Проработаны ступенчатые двухветвевые колонны, сварные подкрановые балки с тормозными площадками, крановые упоры и подстропильные фермы.',
+                deliverables: 'Выдано: Поэтапная выдача чертежей КМД по захваткам (PDF, DWG), управляющие файлы NC/DSTV, раскрой листа DXF, ведомости отправочных марок, BIM-модель IFC.'
+            },
+            {
+                badge: 'Эстакады и лестницы',
+                specs: 'Тоннаж: 140 т • Срок: 10 дней • Tekla Structures',
+                title: 'Технологическая эстакада трубопроводов',
+                desc: 'Деталировка пространственных анкерных и промежуточных опор, двухъярусных траверс под технологические трубопроводы, пролетных ферм и обслуживающих мостиков с ограждениями.',
+                deliverables: 'Выдано: Монтажные схемы, сборочные чертежи опор и ферм (PDF, DWG), файлы ЧПУ NC/DSTV, контуры DXF для плазмы, спецификации метизов и выборка металла.'
+            },
+            {
+                badge: 'Склады и ангары',
+                specs: 'Тоннаж: 310 т • Срок: 15 дней • Tekla Structures',
+                title: 'Каркас производственного корпуса',
+                desc: 'Разработка чертежей КМД каркаса переменного сечения (ЛМК) из сварных двутавров с высокопрочными фланцевыми монтажными стыками, торцевым фахверком, прогонами и связями.',
+                deliverables: 'Выдано: Полный комплект чертежей КМД, развертки стенок и полок сварных балок в DXF, файлы сверловки NC, ведомости высокопрочных болтов, 3D-модель IFC.'
+            },
+            {
+                badge: 'Промышленные цеха',
+                specs: 'Тоннаж: 265 т • Срок: 14 дней • Tekla Structures',
+                title: 'Этажерка технологического оборудования',
+                desc: 'Деталировка трехъярусной технологической этажерки с тяжелыми балочными клетками перекрытий, обрамлением проемов под аппараты, настилом и крестовыми вертикальными связями.',
+                deliverables: 'Выдано: Схемы расположения элементов по ярусам, чертежи отправочных марок и деталей (PDF, DWG), файлы NC/DSTV, сводные ведомости в Excel.'
+            },
+            {
+                badge: 'Эстакады и лестницы',
+                specs: 'Тоннаж: 42 т • Срок: 5 дней • Tekla Structures',
+                title: 'Наружные пожарные лестницы и площадки',
+                desc: 'Разработка комплекта КМД на многомаршевые эвакуационные лестницы типа П2 и вертикальные лестницы П1 со ступенями из прессованного решетчатого настила и узлами крепления к фасаду.',
+                deliverables: 'Выдано: Чертежи КМД (PDF, DWG), деталировка косоуров и кронштейнов, файлы DXF для лазерной резки, ведомости анкеров и метизов.'
+            }
+        ];
+
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const cards = document.querySelectorAll('.portfolio-card');
+
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => {
+                    b.classList.remove('active', 'bg-brand-blue', 'text-white', 'font-bold');
+                    b.classList.add('bg-brand-card', 'text-brand-muted');
+                });
+                btn.classList.add('active', 'bg-brand-blue', 'text-white', 'font-bold');
+                btn.classList.remove('bg-brand-card', 'text-brand-muted');
+
+                const category = btn.getAttribute('data-filter');
+                cards.forEach(card => {
+                    if (category === 'all' || card.getAttribute('data-category') === category) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        function openProjectModal(index) {
+            const data = projectDetails[index];
+            if (!data) return;
+
+            document.getElementById('modal-badge').innerText = data.badge;
+            document.getElementById('modal-specs').innerText = data.specs;
+            document.getElementById('modal-title').innerText = data.title;
+            document.getElementById('modal-desc').innerText = data.desc;
+            document.getElementById('modal-deliverables').innerText = data.deliverables;
+
+            const cardSvg = cards[index].querySelector('svg').cloneNode(true);
+            const previewBox = document.getElementById('modal-preview-box');
+            previewBox.innerHTML = '';
+            previewBox.appendChild(cardSvg);
+
+            const modal = document.getElementById('project-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeProjectModal() {
+            const modal = document.getElementById('project-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        /* ---------------------------------------------------------------------
+           4. ИНТЕРАКТИВНЫЙ КВИЗ-КАЛЬКУЛЯТОР СТОИМОСТИ И СРОКОВ (3 ШАГА)
+        --------------------------------------------------------------------- */
+        let currentStep = 1;
+        const totalSteps = 3;
+
+        const prevBtn = document.getElementById('quiz-prev');
+        const nextBtn = document.getElementById('quiz-next');
+        const stepLabel = document.getElementById('quiz-step-label');
+        const percentLabel = document.getElementById('quiz-percent');
+        const bar = document.getElementById('quiz-bar');
+
+        const slider = document.getElementById('tonnage-slider');
+        const tonnageDisplay = document.getElementById('tonnage-display');
+        const presetButtons = document.querySelectorAll('.ton-preset-btn');
+
+        function updateTonnageUI(val) {
+            const tons = parseInt(val, 10);
+            tonnageDisplay.innerText = `${tons} тонн`;
+
+            presetButtons.forEach(btn => {
+                btn.classList.remove('bg-brand-blue', 'border-brand-cyan', 'text-white', 'font-bold');
+                btn.classList.add('bg-brand-surface', 'border-brand-border', 'text-brand-muted');
+            });
+
+            let activeIdx = 0;
+            if (tons <= 30) activeIdx = 0;
+            else if (tons <= 100) activeIdx = 1;
+            else if (tons <= 300) activeIdx = 2;
+            else activeIdx = 3;
+
+            const activeBtn = presetButtons[activeIdx];
+            if (activeBtn) {
+                activeBtn.classList.add('bg-brand-blue', 'border-brand-cyan', 'text-white', 'font-bold');
+                activeBtn.classList.remove('bg-brand-surface', 'border-brand-border', 'text-brand-muted');
+            }
+        }
+
+        slider.addEventListener('input', e => updateTonnageUI(e.target.value));
+
+        presetButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tons = btn.getAttribute('data-tons');
+                slider.value = tons;
+                updateTonnageUI(tons);
+            });
+        });
+
+        function calculateEstimate() {
+            const typeInput = document.querySelector('input[name="obj_type"]:checked');
+            const type = typeInput ? typeInput.value : 'warehouse';
+            const typeLabel = typeInput ? typeInput.getAttribute('data-label') : 'Склад / ангар';
+            const tons = parseInt(slider.value, 10) || 80;
+
+            const rates = {
+                warehouse: 550,
+                industry: 850,
+                stairs: 1150,
+                custom: 950
+            };
+
+            const rate = rates[type] || 650;
+            const cost = Math.max(15000, Math.round((tons * rate) / 1000) * 1000);
+            const minDays = Math.max(3, Math.round(tons / 16));
+            const maxDays = minDays + 4;
+
+            document.getElementById('calc-result-price').innerText = `от ${cost.toLocaleString('ru-RU')} ₽`;
+            document.getElementById('calc-result-summary').innerText = `${typeLabel} • ~${tons} тонн`;
+            document.getElementById('calc-result-days').innerText = `${minDays} – ${maxDays} рабочих дней`;
+        }
+
+        function renderQuizStep() {
+            for (let i = 1; i <= totalSteps; i++) {
+                document.getElementById(`step-${i}`).classList.add('hidden');
+            }
+            document.getElementById(`step-${currentStep}`).classList.remove('hidden');
+
+            const pct = Math.round((currentStep / totalSteps) * 100);
+            percentLabel.innerText = `${pct}%`;
+            bar.style.width = `${pct}%`;
+
+            if (currentStep === 1) {
+                stepLabel.innerText = 'Шаг 1 из 3: Тип конструкции';
+                prevBtn.classList.add('hidden');
+                nextBtn.querySelector('span').innerText = 'Далее';
+            } else if (currentStep === 2) {
+                stepLabel.innerText = 'Шаг 2 из 3: Тоннаж и исходные данные';
+                prevBtn.classList.remove('hidden');
+                nextBtn.querySelector('span').innerText = 'Рассчитать стоимость';
+            } else if (currentStep === 3) {
+                calculateEstimate();
+                stepLabel.innerText = 'Шаг 3 из 3: Предварительный расчет готов';
+                prevBtn.classList.remove('hidden');
+                nextBtn.querySelector('span').innerText = 'Отправить заявку на КМД';
+            }
+        }
+
+        nextBtn.addEventListener('click', () => {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderQuizStep();
+            } else {
+                const name = document.getElementById('quiz-name').value.trim();
+                const contact = document.getElementById('quiz-contact').value.trim();
+                const feedback = document.getElementById('quiz-feedback');
+
+                if (!contact) {
+                    feedback.className = 'p-4 rounded-xl text-xs font-mono bg-red-500/15 border border-red-500/40 text-red-300';
+                    feedback.innerText = 'Пожалуйста, укажите телефон или Telegram для связи.';
+                    feedback.classList.remove('hidden');
+                    return;
+                }
+
+                const summary = document.getElementById('calc-result-summary').innerText;
+                const price = document.getElementById('calc-result-price').innerText;
+
+                feedback.className = 'p-4 rounded-xl text-xs font-mono bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 leading-relaxed';
+                feedback.innerHTML = `<strong>Заявка успешно отправлена!</strong> Спасибо, ${name || 'коллега'}. Параметры расчета: ${summary} (${price}). Свяжусь с вами по указанному контакту в ближайшее время.`;
+                feedback.classList.remove('hidden');
+            }
+        });
+
+        prevBtn.addEventListener('click', () => {
+            if (currentStep > 1) {
+                currentStep--;
+                document.getElementById('quiz-feedback').classList.add('hidden');
+                renderQuizStep();
+            }
+        });
+
+        /* ---------------------------------------------------------------------
+           5. МОБИЛЬНОЕ МЕНЮ И ФОРМА ОБРАТНОЙ СВЯЗИ
+        --------------------------------------------------------------------- */
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        document.querySelectorAll('.mobile-nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+            });
+        });
+
+        document.getElementById('direct-contact-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const feedback = document.getElementById('direct-form-feedback');
+            feedback.className = 'p-3.5 rounded-lg text-xs font-mono bg-emerald-500/15 border border-emerald-500/40 text-emerald-300';
+            feedback.innerText = 'Запрос успешно отправлен! Отвечу вам в Telegram, WhatsApp или по электронной почте с точным расчетом.';
+            feedback.classList.remove('hidden');
+            this.reset();
+        });
+
+        window.onload = function () {
+            initBackgroundFrame();
+            initHeroNodeViewer();
+        };
+    </script>
+</body>
+</html>
